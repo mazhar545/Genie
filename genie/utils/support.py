@@ -153,7 +153,6 @@ def sync_domain_tickets():
                     f"{settings.support_url}/api/resource/Communication"
                     f"?fields={quote(fields_json)}&filters={quote(filters_json)}"
                 )
-
                 comments_res = make_request("GET", comments_url, headers=headers)
                 comments = comments_res.get("data", [])
 
@@ -198,7 +197,6 @@ def sync_domain_tickets():
                 ticket_doc.conversation_log = conversation_html
                 ticket_doc.save(ignore_permissions=True)
             else:
-                frappe.msgprint(f"🆕 Creating new ticket: {tittle}")
                 new_ticket = frappe.get_doc({
                     "doctype": "Genie Ticket log",
                     "tittle": tittle,
@@ -210,7 +208,6 @@ def sync_domain_tickets():
                 })
                 new_ticket.insert(ignore_permissions=True)
 
-        frappe.msgprint(f"✅ {len(tickets)} ticket(s) synced successfully.")
         return {"status": "success", "ticket_count": len(tickets)}
 
     except Exception as e:
@@ -227,6 +224,8 @@ def make_request(method, url, headers=None, payload=None):
         raise Exception("Unsupported HTTP method")
     response.raise_for_status()
     return response.json()
+
+
 @frappe.whitelist()
 def send_ticket_reply(ticket_id, message):
     try:
@@ -244,7 +243,7 @@ def send_ticket_reply(ticket_id, message):
         ticket_response.raise_for_status()
 
         ticket_data = ticket_response.json().get("data", {})
-        raised_by = ticket_data["raised_by"]  # ✅ No fallback. Must exist.
+        raised_by = ticket_data["raised_by"]  # ✅ Must exist
 
         # ✅ 2. Send the reply, spoofing sender as raised_by
         payload = {
