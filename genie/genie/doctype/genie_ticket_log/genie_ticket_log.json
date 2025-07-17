@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "field:tittle",
+ "autoname": "field:ticket_id",
  "creation": "2025-07-14 10:49:13.687813",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -10,13 +10,15 @@
   "tittle",
   "description",
   "status",
-  "raised_by"
+  "raised_by",
+  "conversation_log"
  ],
  "fields": [
   {
    "fieldname": "ticket_id",
    "fieldtype": "Data",
-   "label": "Ticket Id"
+   "label": "Ticket Id",
+   "unique": 1
   },
   {
    "fieldname": "tittle",
@@ -39,12 +41,17 @@
    "fieldname": "raised_by",
    "fieldtype": "Data",
    "label": "Raised By"
+  },
+  {
+   "fieldname": "conversation_log",
+   "fieldtype": "Text Editor",
+   "label": "Conversation Log"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-15 13:39:59.770655",
+ "modified": "2025-07-16 10:58:51.893048",
  "modified_by": "Administrator",
  "module": "Genie",
  "name": "Genie Ticket log",
