@@ -154,7 +154,6 @@ def sync_domain_tickets():
                     f"?fields={quote(fields_json)}&filters={quote(filters_json)}"
                 )
 
-                frappe.msgprint(f"💬 Fetching messages for ticket: {tittle}")
                 comments_res = make_request("GET", comments_url, headers=headers)
                 comments = comments_res.get("data", [])
 

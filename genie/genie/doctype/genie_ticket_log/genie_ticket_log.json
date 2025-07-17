@@ -35,7 +35,8 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Open\nClosed"
+   "options": "Open\nClosed",
+   "read_only": 1
   },
   {
    "fieldname": "raised_by",
@@ -51,8 +52,8 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-07-16 10:58:51.893048",
- "modified_by": "Administrator",
+ "modified": "2025-07-17 15:43:01.353798",
+ "modified_by": "mazhar@gmail.com",
  "module": "Genie",
  "name": "Genie Ticket log",
  "naming_rule": "By fieldname",
