@@ -102,19 +102,15 @@ def get_portal_url():
 	return {
 		"url": f"{settings.support_url}/helpdesk?sid={sid}"
 	}
-
 import re
 import json
 import frappe
 import requests
-from urllib.parse import quote  # Add this import for quote function
+from urllib.parse import quote
 
 @frappe.whitelist()
 def sync_domain_tickets():
-    # Get the current site URL dynamically and add 'https://' to the URL
-    current_site_url = "https://" + frappe.local.site  # Adding the 'https://' prefix to the current site URL
-    print(f"Current Site URL: {current_site_url}")  # Debug: Check if the site URL is being fetched correctly
-
+    current_site_url = "https://" + frappe.local.site
     settings = frappe.get_cached_doc("Genie Settings")
 
     headers = {
@@ -122,64 +118,106 @@ def sync_domain_tickets():
         "Content-Type": "application/json",
     }
 
-    # Dynamically set the filter based on the current site
-    filters = json.dumps([["custom_site_name", "=", current_site_url]])  # Dynamically fetch the filter
+    filters = json.dumps([["custom_site_name", "=", current_site_url]])
     fields = json.dumps(["*"])
-
     url = f"{settings.support_url}/api/v2/document/HD Ticket?fields={quote(fields)}&filters={quote(filters)}"
 
-    print("🚀 Sync started")
-    print(f"🌐 API URL: {url}")  # Debug: Check if the URL is being built correctly
-    print(f"🔐 Headers: {headers}")  # Debug: Check if headers are correctly set
-
     try:
-        # Fetch tickets from the external API
-        res = make_request("GET", url, headers=headers, payload=None)  # Added method parameter
-        print("📦 Raw API Response:", res)  # Debug: Print the raw API response to check for data
-
-        # Extract tickets from the response
+        frappe.msgprint("🔄 Fetching HD Tickets...")
+        res = make_request("GET", url, headers=headers)
         tickets = res.get("data", [])
-        print(f"🎟 Tickets ({len(tickets)}):", tickets)  # Debug: Check how many tickets were fetched
 
-        # Loop through the tickets and insert them into Genie Ticket Log or update status
         for ticket in tickets:
-            # Get the fields from the external ticket
             tittle = ticket.get("subject")
             description = ticket.get("description", "")
             status = ticket.get("status")
             raised_by = ticket.get("raised_by")
+            ticket_id = ticket.get("name")
 
-            # Remove HTML tags from the description
-            clean_description = re.sub(r'<[^>]*>', '', description)  # Remove HTML tags
+            clean_description = re.sub(r'<[^>]*>', '', description)
+            clean_description = clean_description.replace(current_site_url, "")
+            clean_description = re.sub(r"\bDomain:?\b", "", clean_description, flags=re.IGNORECASE)
+            clean_description = clean_description.replace(":", "").strip()
 
-            # Check if the ticket already exists in the Genie Ticket Log (by ticket's subject)
-            existing_ticket = frappe.get_all("Genie Ticket log", filters={"tittle": tittle}, limit=1)
+            # Start conversation layout
+            conversation_html = '<div style="font-family:Arial,sans-serif;">'
 
-            if existing_ticket:
-                # Ticket already exists, update only the status field
-                ticket_doc = frappe.get_doc("Genie Ticket log", existing_ticket[0].name)
-                ticket_doc.status = status  # Update the status
-                ticket_doc.save(ignore_permissions=True)  # Save the updated ticket
-                print(f"🎫 Ticket with title '{tittle}' status updated to '{status}' in Genie Ticket Log")
+            try:
+                filters_json = json.dumps([
+                    ["reference_doctype", "=", "HD Ticket"],
+                    ["reference_name", "=", ticket_id]
+                ])
+                fields_json = json.dumps(["sender", "content"])
+
+                comments_url = (
+                    f"{settings.support_url}/api/resource/Communication"
+                    f"?fields={quote(fields_json)}&filters={quote(filters_json)}"
+                )
+
+                frappe.msgprint(f"💬 Fetching messages for ticket: {tittle}")
+                comments_res = make_request("GET", comments_url, headers=headers)
+                comments = comments_res.get("data", [])
+
+                for index, msg in enumerate(comments):
+                    sender = msg.get("sender", "Unknown")
+                    content = msg.get("content", "")
+
+                    # Override sender for first message to match raised_by
+                    if index == 0:
+                        sender = raised_by
+
+                    # Clean content
+                    content = content.replace(current_site_url, "")
+                    content = re.sub(r"\bDomain:?\b", "", content, flags=re.IGNORECASE)
+                    content = re.sub(r"\n", "<br>", content)
+
+                    align = "right" if sender == raised_by else "left"
+                    bg_color = "#d1f8d1" if sender == raised_by else "#f0f0f0"
+
+                    conversation_html += f"""
+                        <div style="text-align:{align}; margin:10px 0;">
+                            <div style="display:inline-block; background:{bg_color}; color:#000; padding:10px 14px; border-radius:10px; max-width:75%;">
+                                <div style="font-weight:bold; font-size:13px;">{sender}</div>
+                                <div style="margin-top:5px;">{content.strip()}</div>
+                            </div>
+                        </div>
+                    """
+
+                conversation_html += "</div>"
+
+            except Exception as ce:
+                frappe.msgprint(f"⚠️ Error fetching comments for '{tittle}':<br>{str(ce)}")
+
+            # Save ticket to Genie Ticket log
+            existing_ticket_name = frappe.get_value("Genie Ticket log", {"tittle": tittle}, "name")
+
+            if existing_ticket_name:
+                frappe.msgprint(f"🔁 Updating ticket: {tittle}")
+                ticket_doc = frappe.get_doc("Genie Ticket log", existing_ticket_name)
+                ticket_doc.status = status
+                ticket_doc.ticket_id = ticket_id
+                ticket_doc.conversation_log = conversation_html
+                ticket_doc.save(ignore_permissions=True)
             else:
-                # Ticket doesn't exist, create a new record with all fields
+                frappe.msgprint(f"🆕 Creating new ticket: {tittle}")
                 new_ticket = frappe.get_doc({
                     "doctype": "Genie Ticket log",
                     "tittle": tittle,
-                    "description": clean_description,  # Use cleaned description
+                    "description": clean_description,
                     "status": status,
                     "raised_by": raised_by,
+                    "ticket_id": ticket_id,
+                    "conversation_log": conversation_html
                 })
-                new_ticket.insert(ignore_permissions=True)  # Insert new ticket into Genie Ticket Log
-                print(f"🎫 Ticket with title '{tittle}' inserted into Genie Ticket Log")
+                new_ticket.insert(ignore_permissions=True)
 
-        frappe.msgprint(f"🎫 {len(tickets)} tickets fetched and stored in Genie Ticket Log")
+        frappe.msgprint(f"✅ {len(tickets)} ticket(s) synced successfully.")
         return {"status": "success", "ticket_count": len(tickets)}
 
     except Exception as e:
-        print("❌ Error occurred:", str(e))  # Debug: Print the error message
         frappe.msgprint(f"❌ Error occurred: {str(e)}")
         return {"status": "error", "error": str(e)}
+
 
 def make_request(method, url, headers=None, payload=None):
     if method == "GET":
@@ -188,6 +226,42 @@ def make_request(method, url, headers=None, payload=None):
         response = requests.post(url, headers=headers, json=payload)
     else:
         raise Exception("Unsupported HTTP method")
-
     response.raise_for_status()
     return response.json()
+@frappe.whitelist()
+def send_ticket_reply(ticket_id, message):
+    try:
+        current_site_url = "https://" + frappe.local.site
+        settings = frappe.get_cached_doc("Genie Settings")
+
+        headers = {
+            "Authorization": f"token {settings.get_password('support_api_token')}",
+            "Content-Type": "application/json",
+        }
+
+        # ✅ 1. Fetch the ticket to get the real raised_by
+        ticket_url = f"{settings.support_url}/api/resource/HD Ticket/{ticket_id}"
+        ticket_response = requests.get(ticket_url, headers=headers)
+        ticket_response.raise_for_status()
+
+        ticket_data = ticket_response.json().get("data", {})
+        raised_by = ticket_data["raised_by"]  # ✅ No fallback. Must exist.
+
+        # ✅ 2. Send the reply, spoofing sender as raised_by
+        payload = {
+            "reference_doctype": "HD Ticket",
+            "reference_name": ticket_id,
+            "content": message,
+            "sender": raised_by,  # ✅ Always use raised_by
+            "sent_from_site": current_site_url
+        }
+
+        communication_url = f"{settings.support_url}/api/resource/Communication"
+        reply_response = requests.post(communication_url, headers=headers, json=payload)
+        reply_response.raise_for_status()
+
+        return {"status": "success", "data": reply_response.json()}
+
+    except Exception as e:
+        frappe.log_error(f"❌ Error in send_ticket_reply: {str(e)}")
+        return {"status": "error", "error": str(e)}
