@@ -130,7 +130,7 @@ scheduler_events = {
 	# 	"genie.tasks.daily"
 	# ],
 	"hourly": [
-		"genie.genie.utils.support.sync_domain_tickets" 
+		"genie.utils.support.sync_domain_tickets" 
 	],
 	# "weekly": [
 	# 	"genie.tasks.weekly"
