@@ -194,3 +194,11 @@ scheduler_events = {
 # auth_hooks = [
 #	"genie.auth.validate"
 # ]
+fixtures = [
+    {
+        "doctype": "Client Script",
+        "filters": {
+            "name": ["in", ["custom btn", "Tickets Snchronize"]]
+        }
+    }
+]

@@ -1,0 +1,24 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Client Script",
+  "dt": "Genie Ticket log",
+  "enabled": 1,
+  "modified": "2025-07-15 14:57:08.177886",
+  "module": "Genie",
+  "name": "Tickets Snchronize",
+  "script": "frappe.listview_settings['Genie Ticket log'] = {\r\n    refresh: function(listview) {\r\n        // Add a custom button to the list view\r\n        listview.page.add_inner_button(\"Fetch Tickets\", function() {\r\n            // Call the server-side function (sync_domain_tickets)\r\n            frappe.call({\r\n                method: \"genie.utils.support.sync_domain_tickets\",  // The server-side method\r\n                callback: function(response) {\r\n                    if (response.message) {\r\n                        // Display the message from the server\r\n                        frappe.msgprint(`Tickets synced successfully. Total: ${response.message.ticket_count}`);\r\n                        listview.refresh();  // Refresh the list view after syncing\r\n                    }\r\n                },\r\n                freeze: true,  // Optionally freeze the screen while the operation is running\r\n                freeze_message: 'Syncing tickets... Please wait.'  // Optionally display a loading message\r\n            });\r\n        });\r\n    }\r\n};\r\n",
+  "view": "List"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Client Script",
+  "dt": "Genie Ticket log",
+  "enabled": 1,
+  "modified": "2025-07-17 15:42:04.561259",
+  "module": "Genie",
+  "name": "custom btn",
+  "script": "frappe.ui.form.on(\"Genie Ticket log\", {\r\n    refresh(frm) {\r\n        frm.add_custom_button(\"Reply\", function () {\r\n            let d = new frappe.ui.Dialog({\r\n                title: \"Send Reply to Help Desk\",\r\n                fields: [\r\n                    {\r\n                        label: \"Your Message\",\r\n                        fieldname: \"reply_text\",\r\n                        fieldtype: \"Small Text\",\r\n                        reqd: 1\r\n                    }\r\n                ],\r\n                primary_action_label: \"Send\",\r\n                primary_action(values) {\r\n                    frappe.call({\r\n                        method: \"genie.utils.support.send_ticket_reply\",\r\n                        args: {\r\n                            ticket_id: frm.doc.ticket_id,\r\n                            message: values.reply_text\r\n                        },\r\n                        callback: function (r) {\r\n                            if (r.message.status === \"success\") {\r\n                                frappe.msgprint(\"✅ Reply sent successfully.\");\r\n                                d.hide();\r\n                                frm.reload_doc();\r\n                            } else {\r\n                                frappe.msgprint(\"❌ Failed to send: \" + r.message.error);\r\n                            }\r\n                        }\r\n                    });\r\n                }\r\n            });\r\n\r\n            d.show();\r\n        });\r\n    }\r\n});\r\n",
+  "view": "Form"
+ }
+]
